@@ -1,0 +1,82 @@
+Lx    Ly    Lz
+120   60    120
+
+NumCycle    NumStep    WriteProps    WriteConfig
+1           2000      100           100     
+    
+InitConfig    WallFlag    NumParticle_A    level_A    NumParticle_B    level_B
+1             1           500              -3            0               -3 
+
+EngScale    SpringType_A    SpringType_B    InterparticleInteraction
+1.000000         1              1              3
+
+Inversed_x0    Gm_A    SpringConst_A    Gm_B    SpringConst_B
+2.200000       0.009591     0.011074    0.009591     0.011074
+
+kb_A    kb_B
+0.002393  0.002393
+
+kv_A    kv_B
+0.239770  0.239770
+
+kag_A    kag_B
+0.479540  0.479540
+
+kal_A    kal_B
+0.000000      0.000000
+
+epsLJ    eqLJ    cutoffLJ
+0.000033      0.800000     0.8
+
+Dmorse    widthMorse    eqMorse    cutoffMorse
+0.000073       0.75     0.8        2.2
+
+WallConst    WallForceDis
+0.023931          1.00000
+
+nlistCutoff    CellSize    nlistRenewal
+3.200000             2.200000          0.800000
+
+GrowthStep    FrictionalMass
+20000            1000.000000
+
+@ Information
+=============================================================================
+Ls = 5.000000e-07
+Es = 6.590512e-18
+Ns = 1.318102e-11
+Ts = 3.793332e-06
+
+Compression modulus (K) = 9.499452e+00
+Ym                      = 7.169398e-01
+Poisson ratio           = 0.962264
+Ym deviation            = 0.018868
+FvK                     = 680.000000
+
+Ca(R) = 0.070000
+Re(R) = 0.100000
+Ca(D)   = 0.140000
+Re(D)   = 0.400000
+
+Dp             = 7.820000e-06
+Yp             = 1.890000e-05
+Gp             = 4.815865e-06
+kb_p           = 3.004105e-19
+eta_p          = 1.200000e-03
+kv_p           = 2.407933e+02
+kag_p          = 2.407933e-04
+kal_p          = 0.000000e+00
+shear_p        = 7.184795e+01
+Vol fraction   = 0.049488
+
+Gm                      = 0.182682
+kb_m                    = 4.558227e-02
+kv_m                    = 4.567044e+00
+kag_m                   = 9.134088e+00
+kal_m                   = 0.000000e+00
+wall_vel_diff_m         = 6.541035e-03
+max_vel_m (Poiseuille)  = 0.000000e+00
+shear_rate_m            = 2.725431e-04
+kT300_m                 = 6.284710e-04
+# of steps for 1 strain = 3669.144000
+

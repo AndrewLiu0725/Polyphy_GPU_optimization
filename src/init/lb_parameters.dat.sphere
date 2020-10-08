@@ -1,0 +1,11 @@
+dim_x    dim_y    dim_z
+60       200      60
+number_of_boundaries    boundary_vel.x    boundary_vel.y    boundary_vel.z
+2                       2.180345e-03              0.                0.
+ext_force_flag    ext_force_density.x    ext_force_density.y    ext_force_density.z
+0                 0.00                    0.                     0.
+agrid    tau    rho
+1.0      1.0    36.0
+gamma_shear    gamma_bulk    gamma_odd    gamma_even
+0.0            0.0           0.           0.
+
