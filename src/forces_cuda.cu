@@ -145,205 +145,168 @@ __global__ void SpringForce (struct monomer *monomers, int *numBonds, int *blist
 __global__ void BendingForce (struct monomer *monomers, int *numBonds, int *blist, double *pos, double *bendingForces) {
   
   unsigned int index = blockIdx.y * gridDim.x * blockDim.x + blockIdx.x * blockDim.x + threadIdx.x;
-  if (index < d_partParams.Nsphere)
+  if (index < d_partParams.num_beads)
 	{
     double kb; 
-    unsigned int numNodesPerParticle; 
-    unsigned int nodeOffset;
 
-    if (index < d_partParams.Ntype[0]) {  
+    if (index < (d_partParams.Ntype[0]*d_partParams.N_per_sphere[0])) {  
       kb = 2.0/sqrt(3.0)*d_partParams.kc[0]*d_partParams.kT;
       //kb = 2.0*sqrt(3)*d_partParams.kc[0]*d_partParams.kT;
-      numNodesPerParticle = d_partParams.N_per_sphere[0];
-      nodeOffset = index*d_partParams.N_per_sphere[0];
     }
     else {
-      kb = 2.0/sqrt(3.0)*d_partParams.kc[1]*d_partParams.kT;
-      numNodesPerParticle = d_partParams.N_per_sphere[1];
-      nodeOffset = d_partParams.Ntype[0] * d_partParams.N_per_sphere[0] + (index - d_partParams.Ntype[0]) * d_partParams.N_per_sphere[1];
+      kb = 2.0/sqrt(3.0)*d_partParams.kc[1]*d_partParams.kT; 
     }
 
-		for (unsigned int j=0; j < numNodesPerParticle; j++) 
-		{
-			unsigned int n1 = j + nodeOffset;
-      unsigned int n1offset = n1*3; 
 
-			for (unsigned int k=1; k <= numBonds[n1]; k++) 
-			{
-        double theta0 = monomers[n1].initAngle[k];
-        //        int n2 = blist[n1][k][0];
-        //	      int n3 = blist[n1][k][1];
-        //		    int n4 = blist[n1][k][2];
-        unsigned int n2 = blist[n1*6*3+(k-1)*3+0];
-        unsigned int n3 = blist[n1*6*3+(k-1)*3+1];
-        unsigned int n4 = blist[n1*6*3+(k-1)*3+2];
-        unsigned int n2offset = n2*3;
-        unsigned int n3offset = n3*3;
-        unsigned int n4offset = n4*3;
+    unsigned int n1 = index;
+    unsigned int n1offset = n1*3; 
 
-        double v1[3], v2[3], v3[3], v4[3];
-        v1[0]=pos[n1offset];
-        v1[1]=pos[n1offset+1];
-        v1[2]=pos[n1offset+2];
+    for (unsigned int k=1; k <= numBonds[n1]; k++) 
+    {
+      double theta0 = monomers[n1].initAngle[k];
+      //        int n2 = blist[n1][k][0];
+      //	      int n3 = blist[n1][k][1];
+      //		    int n4 = blist[n1][k][2];
+      unsigned int n2 = blist[n1*6*3+(k-1)*3+0];
+      unsigned int n3 = blist[n1*6*3+(k-1)*3+1];
+      unsigned int n4 = blist[n1*6*3+(k-1)*3+2];
+      unsigned int n2offset = n2*3;
+      unsigned int n3offset = n3*3;
+      unsigned int n4offset = n4*3;
 
-        v2[0]=pos[n2offset];
-        v2[1]=pos[n2offset+1];
-        v2[2]=pos[n2offset+2];
+      double v1[3], v2[3], v3[3], v4[3];
+      v1[0]=pos[n1offset];
+      v1[1]=pos[n1offset+1];
+      v1[2]=pos[n1offset+2];
 
-        v3[0]=pos[n3offset];
-        v3[1]=pos[n3offset+1];
-        v3[2]=pos[n3offset+2];
+      v2[0]=pos[n2offset];
+      v2[1]=pos[n2offset+1];
+      v2[2]=pos[n2offset+2];
 
-        v4[0]=pos[n4offset];
-        v4[1]=pos[n4offset+1];
-        v4[2]=pos[n4offset+2];
+      v3[0]=pos[n3offset];
+      v3[1]=pos[n3offset+1];
+      v3[2]=pos[n3offset+2];
 
-				double a31[3], a21[3], a41[3];
-				a31[0] = v3[0] - v1[0];
-				a31[1] = v3[1] - v1[1];
-				a31[2] = v3[2] - v1[2];
-				a21[0] = v2[0] - v1[0];
-				a21[1] = v2[1] - v1[1];
-				a21[2] = v2[2] - v1[2];
-				a41[0] = v4[0] - v1[0];
-				a41[1] = v4[1] - v1[1];
-				a41[2] = v4[2] - v1[2];
+      v4[0]=pos[n4offset];
+      v4[1]=pos[n4offset+1];
+      v4[2]=pos[n4offset+2];
 
-				double normal1[3], normal2[3];
-				VectorProduct(a31, a21, normal1);
-				VectorProduct(a21, a41, normal2);
+      double a31[3], a21[3], a41[3];
+      a31[0] = v3[0] - v1[0];
+      a31[1] = v3[1] - v1[1];
+      a31[2] = v3[2] - v1[2];
+      a21[0] = v2[0] - v1[0];
+      a21[1] = v2[1] - v1[1];
+      a21[2] = v2[2] - v1[2];
+      a41[0] = v4[0] - v1[0];
+      a41[1] = v4[1] - v1[1];
+      a41[2] = v4[2] - v1[2];
 
-				double normal1_mag, normal2_mag;
-				normal1_mag = sqrt(normal1[0]*normal1[0] + normal1[1]*normal1[1] + normal1[2]*normal1[2]);
-				normal2_mag = sqrt(normal2[0]*normal2[0] + normal2[1]*normal2[1] + normal2[2]*normal2[2]);
+      double normal1[3], normal2[3];
+      VectorProduct(a31, a21, normal1);
+      VectorProduct(a21, a41, normal2);
 
-				normal1[0] = normal1[0] / normal1_mag;
-				normal1[1] = normal1[1] / normal1_mag;
-				normal1[2] = normal1[2] / normal1_mag;
-				normal2[0] = normal2[0] / normal2_mag; 
-				normal2[1] = normal2[1] / normal2_mag; 
-				normal2[2] = normal2[2] / normal2_mag; 
+      double normal1_mag, normal2_mag;
+      normal1_mag = sqrt(normal1[0]*normal1[0] + normal1[1]*normal1[1] + normal1[2]*normal1[2]);
+      normal2_mag = sqrt(normal2[0]*normal2[0] + normal2[1]*normal2[1] + normal2[2]*normal2[2]);
 
-        double orient[3];
-        VectorProduct(normal1, normal2, orient);
-        double value = sqrt((orient[0]*orient[0] + orient[1]*orient[1] + orient[2]*orient[2]));
-        double scaler = normal1[0]*normal2[0] + normal1[1]*normal2[1] + normal1[2]*normal2[2];
-        double theta = atan2(value, scaler);
-        // Note: ###################################################################
-        // When RBC particles are applied this program crashes if theta is computed 
-        // by acos !
-        // #########################################################################
-        /*if(scaler > 1.) scaler=1;
-        double theta = acos(scaler);*/
+      normal1[0] = normal1[0] / normal1_mag;
+      normal1[1] = normal1[1] / normal1_mag;
+      normal1[2] = normal1[2] / normal1_mag;
+      normal2[0] = normal2[0] / normal2_mag; 
+      normal2[1] = normal2[1] / normal2_mag; 
+      normal2[2] = normal2[2] / normal2_mag; 
 
-        double cosTheta = cos(theta);
-        double sign = orient[0]*a21[0] + orient[1]*a21[1] + orient[2]*a21[2];
-        //double temp = sin(theta_nr);
-        if (sign > 0) theta = -1.0*theta;
-        double delta_theta = theta - theta0;
-        double sinTheta = sin(theta);
-//        delta_theta = sin(delta_theta);
+      double orient[3];
+      VectorProduct(normal1, normal2, orient);
+      double value = sqrt((orient[0]*orient[0] + orient[1]*orient[1] + orient[2]*orient[2]));
+      double scaler = normal1[0]*normal2[0] + normal1[1]*normal2[1] + normal1[2]*normal2[2];
+      double theta = atan2(value, scaler);
+      // Note: ###################################################################
+      // When RBC particles are applied this program crashes if theta is computed 
+      // by acos !
+      // #########################################################################
+      /*if(scaler > 1.) scaler=1;
+      double theta = acos(scaler);*/
 
-        double factor;
-//        if(sign > 0)
-//          factor = -kb * delta_theta / temp;
-//        else
-//          factor =  kb * delta_theta / temp;  
+      double cosTheta = cos(theta);
+      double sign = orient[0]*a21[0] + orient[1]*a21[1] + orient[2]*a21[2];
+      //double temp = sin(theta_nr);
+      if (sign > 0) theta = -1.0*theta;
+      double delta_theta = theta - theta0;
+      double sinTheta = sin(theta);
+      double factor;
 
-        factor =  kb * sin(delta_theta) / sinTheta;  
-//
-//        double cosTheta = normal1[0]*normal2[0] + normal1[1]*normal2[1] + 
-//                          normal1[2]*normal2[2];
-//				double theta = acos(cosTheta);
-//
-//				double orient[3]; 
-//				product(normal1, normal2, orient);
-//
-//        // Determine the sign of the angle, which determines the force direction
-//        // if sign > 0 theta_nr = -theta_nr, otherwise theta_nr = theta_nr
-//      	double sign = orient[0]*a21[0] + orient[1]*a21[1] + orient[2]*a21[2];
-//				if (sign > 0) { 
-//          theta = -1.0*theta; 
-//        }
-//        // After the sign is determined, compute delta theta and sin(theta)
-//        double sinTheta = sin(theta);
-////				double deltaTheta = theta - theta0;
-//double deltaTheta = theta;
-//
-//        // factor = -kb * sin(deltaTheta) / -sqrt(1-cos(theta)*cos(theta))
-////        double factor = kb * sin(deltaTheta) / sinTheta;
-//        // if the small angle approximation is preffered:
-//        // sin(theta- theta0) ~ theta - theta0 
-//double factor = kb * deltaTheta / sinTheta;
-//
-				double n12[3], n21[3];
-				n12[0] = normal1[0] - cosTheta*normal2[0];
-				n12[1] = normal1[1] - cosTheta*normal2[1];
-				n12[2] = normal1[2] - cosTheta*normal2[2];
-				n21[0] = normal2[0] - cosTheta*normal1[0];
-				n21[1] = normal2[1] - cosTheta*normal1[1];
-				n21[2] = normal2[2] - cosTheta*normal1[2];
+      factor =  kb * sin(delta_theta) / sinTheta;  
 
-				double a12[3], a14[3], a23[3], a42[3];
-				a12[0] = -a21[0];
-				a12[1] = -a21[1];
-				a12[2] = -a21[2];
-				a14[0] = -a41[0];
-				a14[1] = -a41[1];
-				a14[2] = -a41[2];
-				a23[0] = v2[0] - v3[0];
-				a23[1] = v2[1] - v3[1];
-				a23[2] = v2[2] - v3[2];
-				a42[0] = v4[0] - v2[0];
-				a42[1] = v4[1] - v2[1];
-				a42[2] = v4[2] - v2[2];
+      double n12[3], n21[3];
+      n12[0] = normal1[0] - cosTheta*normal2[0];
+      n12[1] = normal1[1] - cosTheta*normal2[1];
+      n12[2] = normal1[2] - cosTheta*normal2[2];
+      n21[0] = normal2[0] - cosTheta*normal1[0];
+      n21[1] = normal2[1] - cosTheta*normal1[1];
+      n21[2] = normal2[2] - cosTheta*normal1[2];
 
-				double term3[3], term21[3], term22[3], term11[3], term12[3], term4[3];
-				VectorProduct(n21, a12, term3);
-				VectorProduct(n21, a31, term21);
-				VectorProduct(n12, a14, term22);
-				VectorProduct(n21, a23, term11);
-				VectorProduct(n12, a42, term12);
-				VectorProduct(n12, a21, term4);
+      double a12[3], a14[3], a23[3], a42[3];
+      a12[0] = -a21[0];
+      a12[1] = -a21[1];
+      a12[2] = -a21[2];
+      a14[0] = -a41[0];
+      a14[1] = -a41[1];
+      a14[2] = -a41[2];
+      a23[0] = v2[0] - v3[0];
+      a23[1] = v2[1] - v3[1];
+      a23[2] = v2[2] - v3[2];
+      a42[0] = v4[0] - v2[0];
+      a42[1] = v4[1] - v2[1];
+      a42[2] = v4[2] - v2[2];
 
-				double pre1, pre2;
-				pre1 = factor / normal1_mag;
-				pre2 = factor / normal2_mag;
+      double term3[3], term21[3], term22[3], term11[3], term12[3], term4[3];
+      VectorProduct(n21, a12, term3);
+      VectorProduct(n21, a31, term21);
+      VectorProduct(n12, a14, term22);
+      VectorProduct(n21, a23, term11);
+      VectorProduct(n12, a42, term12);
+      VectorProduct(n12, a21, term4);
 
-				double f1[3], f2[3], f3[3], f4[3];
-				f3[0] = pre1 * term3[0];
-				f3[1] = pre1 * term3[1];
-				f3[2] = pre1 * term3[2];
+      double pre1, pre2;
+      pre1 = factor / normal1_mag;
+      pre2 = factor / normal2_mag;
 
-				f2[0] = pre1 * term21[0] + pre2 * term22[0];
-				f2[1] = pre1 * term21[1] + pre2 * term22[1];
-				f2[2] = pre1 * term21[2] + pre2 * term22[2];
+      double f1[3], f2[3], f3[3], f4[3];
+      f3[0] = pre1 * term3[0];
+      f3[1] = pre1 * term3[1];
+      f3[2] = pre1 * term3[2];
 
-				f1[0] = pre1 * term11[0] + pre2 * term12[0];
-				f1[1] = pre1 * term11[1] + pre2 * term12[1];
-				f1[2] = pre1 * term11[2] + pre2 * term12[2];
+      f2[0] = pre1 * term21[0] + pre2 * term22[0];
+      f2[1] = pre1 * term21[1] + pre2 * term22[1];
+      f2[2] = pre1 * term21[2] + pre2 * term22[2];
 
-				f4[0] = pre2 * term4[0];    
-				f4[1] = pre2 * term4[1];    
-				f4[2] = pre2 * term4[2];    
+      f1[0] = pre1 * term11[0] + pre2 * term12[0];
+      f1[1] = pre1 * term11[1] + pre2 * term12[1];
+      f1[2] = pre1 * term11[2] + pre2 * term12[2];
 
-        bendingForces[n1offset+0] += f1[0];          
-        bendingForces[n1offset+1] += f1[1];          
-        bendingForces[n1offset+2] += f1[2];
-        
-        bendingForces[n2offset+0] += f2[0];          
-        bendingForces[n2offset+1] += f2[1];          
-        bendingForces[n2offset+2] += f2[2];          
+      f4[0] = pre2 * term4[0];    
+      f4[1] = pre2 * term4[1];    
+      f4[2] = pre2 * term4[2];    
 
-        bendingForces[n3offset+0] += f3[0];          
-        bendingForces[n3offset+1] += f3[1];          
-        bendingForces[n3offset+2] += f3[2];          
+      bendingForces[n1offset+0] += f1[0];          
+      bendingForces[n1offset+1] += f1[1];          
+      bendingForces[n1offset+2] += f1[2];
+      
+      bendingForces[n2offset+0] += f2[0];          
+      bendingForces[n2offset+1] += f2[1];          
+      bendingForces[n2offset+2] += f2[2];          
 
-        bendingForces[n4offset+0] += f4[0];          
-        bendingForces[n4offset+1] += f4[1];          
-        bendingForces[n4offset+2] += f4[2];        
-			}
-		}
+      bendingForces[n3offset+0] += f3[0];          
+      bendingForces[n3offset+1] += f3[1];          
+      bendingForces[n3offset+2] += f3[2];          
+
+      bendingForces[n4offset+0] += f4[0];          
+      bendingForces[n4offset+1] += f4[1];          
+      bendingForces[n4offset+2] += f4[2];        
+    }
+		
   }
 }
 
@@ -1098,38 +1061,33 @@ void ComputeForces_gpu (/*unsigned int h_numBeads, unsigned int h_numParticles,*
   dim3 dim_grid = make_uint3 (blocks_per_grid_x, blocks_per_grid_y, 1);
 
   ZeroForces <<<dim_grid, threads_per_block>>> (d_springForces, d_bendingForces, d_volumeForces, d_globalAreaForces, d_localAreaForces, d_wallForces, d_interparticleForces);
-
+  SpringForce <<<dim_grid, threads_per_block , 0, streams[0]>>> (d_monomers, d_numBonds, d_blist, d_pos, d_springForces);
+  BendingForce <<<dim_grid, threads_per_block , 0, streams[1]>>> (d_monomers, d_numBonds, d_blist, d_pos, d_bendingForces);
 
   threads_per_block = 64;
   blocks_per_grid_y = 4;
   blocks_per_grid_x = (h_numParticles + threads_per_block*blocks_per_grid_y - 1) / (threads_per_block * blocks_per_grid_y);
   dim_grid = make_uint3 (blocks_per_grid_x, blocks_per_grid_y, 1);
- 
-  SpringForce <<<dim_grid, threads_per_block , 0, streams[0]>>> (d_monomers, d_numBonds, d_blist, d_pos, d_springForces);
 
-  BendingForce <<<dim_grid, threads_per_block , 0, streams[1]>>> (d_monomers, d_numBonds, d_blist, d_pos, d_bendingForces);
+  ZeroCOM <<<dim_grid, threads_per_block, 0, streams[2]>>> (d_coms, d_volumes, d_areas);
 
-//  VolumeAreaConstraints <<<dim_grid, threads_per_block , 0, streams[2]>>> (d_faces, d_pos, d_volumeForces, d_globalAreaForces, d_localAreaForces);
+  threads_per_block = 64;
+  blocks_per_grid_y = 4;
+  blocks_per_grid_x = (h_numBeads + threads_per_block*blocks_per_grid_y - 1) / (threads_per_block * blocks_per_grid_y);
+  dim_grid = make_uint3 (blocks_per_grid_x, blocks_per_grid_y, 1);
+  
+  COM <<<dim_grid, threads_per_block, 0, streams[2]>>> (d_pos, d_coms);
 
-ZeroCOM <<<dim_grid, threads_per_block, 0, streams[2]>>> (d_coms, d_volumes, d_areas);
+  threads_per_block = 64;
+  blocks_per_grid_y = 4;
+  blocks_per_grid_x = (h_numFaces + threads_per_block*blocks_per_grid_y - 1) / (threads_per_block * blocks_per_grid_y);
+  dim_grid = make_uint3 (blocks_per_grid_x, blocks_per_grid_y, 1);
+  
+  VolumeAreas <<<dim_grid, threads_per_block,0,streams[2]>>> (d_faces, d_pos, d_coms, d_faceCenters, d_normals, d_areas, d_volumes);
 
-threads_per_block = 64;
-blocks_per_grid_y = 4;
-blocks_per_grid_x = (h_numBeads + threads_per_block*blocks_per_grid_y - 1) / (threads_per_block * blocks_per_grid_y);
-dim_grid = make_uint3 (blocks_per_grid_x, blocks_per_grid_y, 1);
- 
-COM <<<dim_grid, threads_per_block, 0, streams[2]>>> (d_pos, d_coms);
-
-threads_per_block = 64;
-blocks_per_grid_y = 4;
-blocks_per_grid_x = (h_numFaces + threads_per_block*blocks_per_grid_y - 1) / (threads_per_block * blocks_per_grid_y);
-dim_grid = make_uint3 (blocks_per_grid_x, blocks_per_grid_y, 1);
- 
-VolumeAreas <<<dim_grid, threads_per_block,0,streams[2]>>> (d_faces, d_pos, d_coms, d_faceCenters, d_normals, d_areas, d_volumes);
-
-//PrintCOM <<<1,64,0,streams[2]>>> (d_coms, d_volumes, d_areas);
- 
-VolumeAreaForces <<<dim_grid, threads_per_block,0,streams[2]>>> (d_volumes, d_faces, d_areas, d_pos, d_faceCenters, d_normals, d_volumeForces, d_globalAreaForces, d_localAreaForces);
+  //PrintCOM <<<1,64,0,streams[2]>>> (d_coms, d_volumes, d_areas);
+  
+  VolumeAreaForces <<<dim_grid, threads_per_block,0,streams[2]>>> (d_volumes, d_faces, d_areas, d_pos, d_faceCenters, d_normals, d_volumeForces, d_globalAreaForces, d_localAreaForces);
 
 
   threads_per_block = 64;
