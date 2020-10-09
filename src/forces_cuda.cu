@@ -73,76 +73,72 @@ __global__ void SumForces (double *springForces, double *bendingForces, float *v
 }
 
 __global__ void SpringForce (struct monomer *monomers, int *numBonds, int *blist, double *pos, double *springForces) {
- 
+
+  // The thread grid is large enough to cover the entire data array, so no need to use grid-stride loop
   unsigned int index = blockIdx.y * gridDim.x * blockDim.x + blockIdx.x * blockDim.x + threadIdx.x;
-  if (index < d_partParams.Nsphere)  
+  if (index < d_partParams.num_beads)  
 	{
     unsigned short springType;
     double springConst;
     unsigned int   numNodesPerParticle; 
     unsigned int   nodeOffset;
 
-    if (index < d_partParams.Ntype[0]) {  
+    // Ntype attr is # of particles per type
+    // Decide the spring type of that monomer
+    if (index < (d_partParams.Ntype[0]*d_partParams.N_per_sphere[0])) {  
       springType = d_partParams.springType[0];
       springConst = -2.0 * d_partParams.springConst[0] * d_partParams.kT;
       // varibles for the WLC-POW spring is set in function 'SetSpringConst'
-      numNodesPerParticle = d_partParams.N_per_sphere[0];
-      nodeOffset = index * d_partParams.N_per_sphere[0];
     }
     else {
       springType = d_partParams.springType[1]; 
       springConst = -2.0 * d_partParams.springConst[1] * d_partParams.kT;
       // variables for the WLC-POW spring is set in function 'SetSpringConst'.
-      numNodesPerParticle = d_partParams.N_per_sphere[1];
-      nodeOffset = d_partParams.Ntype[0] * d_partParams.N_per_sphere[0] + (index - d_partParams.Ntype[0]) * d_partParams.N_per_sphere[1];
     }
-
-		for (unsigned int j=0; j < numNodesPerParticle; j++) 
-		{
-		  unsigned int n1 = j + nodeOffset;
-      unsigned int n1offset = n1*3;
+		unsigned int n1 = index;
+    unsigned int n1offset = n1*3;
                            
-			for (unsigned int k=1; k <= numBonds[n1]; k++) 
-			{
-        //int n2 = blist[n1][k][0];
-        unsigned int n2 = blist[n1*6*3+(k-1)*3+0];
-        unsigned int n2offset = n2*3;
-				double length_eq = monomers[n1].initLength[k];
-				double q12[3];
-				q12[0] = pos[n1offset+0] - pos[n2offset+0];
-				q12[1] = pos[n1offset+1] - pos[n2offset+1];
-				q12[2] = pos[n1offset+2] - pos[n2offset+2];
-        double q12mag;  
-				q12mag = q12[0]*q12[0] + q12[1]*q12[1] + q12[2]*q12[2];
-				q12mag = sqrt(q12mag); 
-				q12[0] /= q12mag;
-				q12[1] /= q12mag;
-				q12[2] /= q12mag;
+    for (unsigned int k=1; k <= numBonds[n1]; k++) 
+    {
+      //int n2 = blist[n1][k][0];
+      unsigned int n2 = blist[n1*6*3+(k-1)*3+0];
+      unsigned int n2offset = n2*3;
+      double length_eq = monomers[n1].initLength[k];
+      double q12[3];
+      q12[0] = pos[n1offset+0] - pos[n2offset+0];
+      q12[1] = pos[n1offset+1] - pos[n2offset+1];
+      q12[2] = pos[n1offset+2] - pos[n2offset+2];
+      double q12mag;  
+      q12mag = q12[0]*q12[0] + q12[1]*q12[1] + q12[2]*q12[2];
+      q12mag = sqrt(q12mag); 
+      q12[0] /= q12mag;
+      q12[1] /= q12mag;
+      q12[2] /= q12mag;
 
-        double mag;  
-        double force[3];
-        if (springType == 1) {
-				  double x = q12mag / monomers[n1].lmax[k];
-					double x2 = x*x;
-					double x3 = x*x*x;       
-					mag = -0.25*monomers[n1].kT_inversed_persis[k] * (4*x3-9*x2+6*x) / (1+x2-2*x) + monomers[n1].kp[k] / (q12mag*q12mag);
-				}
-				else if (springType == 2) {
-			    // Note: mag = (-partial U / partial r) 
-					//mag = -2.0 * spring_const * (q12mag-length_eq);
-					mag = springConst * (q12mag-length_eq);
-				}
-				force[0] = mag * q12[0];
-				force[1] = mag * q12[1];
-				force[2] = mag * q12[2];
-        springForces[n1offset+0] += force[0];
-        springForces[n1offset+1] += force[1];
-        springForces[n1offset+2] += force[2];
-        springForces[n2offset+0] -= force[0];
-        springForces[n2offset+1] -= force[1];
-        springForces[n2offset+2] -= force[2];
+      double mag;  
+      double force[3];
+      if (springType == 1) {
+        double x = q12mag / monomers[n1].lmax[k];
+        double x2 = x*x;
+        double x3 = x*x*x;       
+        mag = -0.25*monomers[n1].kT_inversed_persis[k] * (4*x3-9*x2+6*x) / (1+x2-2*x) + monomers[n1].kp[k] / (q12mag*q12mag);
       }
+      else if (springType == 2) {
+        // Note: mag = (-partial U / partial r) 
+        //mag = -2.0 * spring_const * (q12mag-length_eq);
+        mag = springConst * (q12mag-length_eq);
+      }
+      force[0] = mag * q12[0];
+      force[1] = mag * q12[1];
+      force[2] = mag * q12[2];
+      springForces[n1offset+0] += force[0];
+      springForces[n1offset+1] += force[1];
+      springForces[n1offset+2] += force[2];
+      springForces[n2offset+0] -= force[0];
+      springForces[n2offset+1] -= force[1];
+      springForces[n2offset+2] -= force[2];
     }
+    
   }
 }
 
@@ -157,7 +153,7 @@ __global__ void BendingForce (struct monomer *monomers, int *numBonds, int *blis
 
     if (index < d_partParams.Ntype[0]) {  
       kb = 2.0/sqrt(3.0)*d_partParams.kc[0]*d_partParams.kT;
-//kb = 2.0*sqrt(3)*d_partParams.kc[0]*d_partParams.kT;
+      //kb = 2.0*sqrt(3)*d_partParams.kc[0]*d_partParams.kT;
       numNodesPerParticle = d_partParams.N_per_sphere[0];
       nodeOffset = index*d_partParams.N_per_sphere[0];
     }
@@ -175,9 +171,9 @@ __global__ void BendingForce (struct monomer *monomers, int *numBonds, int *blis
 			for (unsigned int k=1; k <= numBonds[n1]; k++) 
 			{
         double theta0 = monomers[n1].initAngle[k];
-//        int n2 = blist[n1][k][0];
-//	      int n3 = blist[n1][k][1];
-//		    int n4 = blist[n1][k][2];
+        //        int n2 = blist[n1][k][0];
+        //	      int n3 = blist[n1][k][1];
+        //		    int n4 = blist[n1][k][2];
         unsigned int n2 = blist[n1*6*3+(k-1)*3+0];
         unsigned int n3 = blist[n1*6*3+(k-1)*3+1];
         unsigned int n4 = blist[n1*6*3+(k-1)*3+2];
@@ -1095,6 +1091,7 @@ void ComputeForces_gpu (/*unsigned int h_numBeads, unsigned int h_numParticles,*
     cudaStreamCreate (&(streams[i]));
   }
 
+  // Assign a thread grid which can cover the bead-level computation
   int threads_per_block = 64;
   int blocks_per_grid_y = 4;
   int blocks_per_grid_x = (h_params.num_beads + threads_per_block*blocks_per_grid_y - 1) / (threads_per_block * blocks_per_grid_y);
