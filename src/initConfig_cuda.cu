@@ -138,7 +138,7 @@ void ModifyParameters_wrapper (int h_numBeads, int *d_numBonds, struct monomer *
 }
 
 extern "C"
-void RestoreParticle_gpu (struct sphere_param h_params, double *h_foldedPos, double *h_nlistPos, int *h_numNeighbors, int *h_nlist, struct face *h_faces, struct monomer *d_monomers, struct face *d_faces, int *d_numBonds, int *d_blist, int *d_numNeighbors, int *d_nlist, double *d_pos, double *d_foldedPos, double *d_nlistPos, double *d_velocities, double *d_springForces, double *d_bendingForces, float *d_volumeForces, float *d_globalAreaForces, double *d_localAreaForces, double *d_wallForces, double *d_interparticleForces, double *d_forces    ,float *d_coms, double *d_faceCenters, double *d_normals, float *d_areas, float *d_volumes) {
+void RestoreParticle_gpu (struct sphere_param h_params, double *h_foldedPos, double *h_nlistPos, int *h_numNeighbors, int *h_nlist, struct face *h_faces, struct monomer *d_monomers, struct face *d_faces, int *d_numBonds, int *d_blist, int *d_numNeighbors, int *d_nlist, double *d_pos, double *d_foldedPos, double *d_nlistPos, double *d_velocities, double *d_springForces, double *d_bendingForces, float *d_volumeForces, float *d_globalAreaForces, double *d_localAreaForces, double *d_wallForces, double *d_interparticleForces, double *d_forces    ,float *d_coms, double *d_faceCenters, double *d_normals, float *d_areas, float *d_volumes, int *d_face_pair_list) {
 
   int count = 0;
   fprintf (stdout,"Start restoring particles\n");
@@ -156,7 +156,7 @@ void RestoreParticle_gpu (struct sphere_param h_params, double *h_foldedPos, dou
     cudaMemcpyToSymbol(d_partParams, &h_params, sizeof(struct sphere_param)); 
     cudaMemcpyToSymbol(d_step, &h_step, sizeof(int));
 
-    ComputeForces_gpu (h_params, d_monomers, d_faces, d_numBonds, d_blist, d_numNeighbors, d_nlist, d_pos, d_springForces, d_bendingForces, d_volumeForces, d_globalAreaForces, d_localAreaForces, d_wallForces, d_interparticleForces, d_forces    ,d_coms, d_faceCenters, d_normals, d_areas, d_volumes);
+    ComputeForces_gpu (h_params, d_monomers, d_faces, d_numBonds, d_blist, d_numNeighbors, d_nlist, d_pos, d_springForces, d_bendingForces, d_volumeForces, d_globalAreaForces, d_localAreaForces, d_wallForces, d_interparticleForces, d_forces    ,d_coms, d_faceCenters, d_normals, d_areas, d_volumes, d_face_pair_list);
 
     EulerUpdate_wrapper (h_params.num_beads, d_forces, d_velocities, d_pos, d_foldedPos);
 

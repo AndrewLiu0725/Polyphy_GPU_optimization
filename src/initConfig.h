@@ -7,13 +7,13 @@
 
 void ModifyParameters (int step, int *numBonds, struct sphere_param *params, struct monomer *monomers);
 
-int GenerateConfig (struct sphere_param *sphere_pm, char *work_dir, struct monomer *monomers, struct face *faces, double *pos, double *foldedPos, int *numBonds, int *blist, int ***Blist);
+int GenerateConfig (struct sphere_param *sphere_pm, char *work_dir, struct monomer *monomers, struct face *faces, double *pos, double *foldedPos, int *numBonds, int *blist, int ***Blist, int *h_node_face_id, int *h_node_face_number);
 
 void ReadTemplate (int particleType, double reducedFactor, char *work_dir, double **v, int ***blist); 
 
 void RotationMatrix (double thetaX, double thetaY, double thetaZ, double mat[3][3]);
 
-void AssignBlist (struct sphere_param *sphere_pm, char *work_dir, int ***Blist, struct face *faces);
+void AssignBlist (struct sphere_param *sphere_pm, char *work_dir, int ***Blist, struct face *faces, int *h_node_face_id, int *h_node_face_number);
 
 void ReadConfig (char *work_dir, int num_node, struct monomer *node, double *pos, double *foldedPos, int ***blist);
 
@@ -27,9 +27,10 @@ void SetReducedPartParams (double *pos, int *numBonds, int *blist, struct sphere
 
 void RestoreParticle (struct sphere_param *h_params, struct face *h_faces, double *h_foldedPos, int *h_numBonds, struct monomer *h_monomers, double *h_springForces, double *h_bendingForces, double *h_volumeForces, double *h_globalAreaForces, double *h_localAreaForces, double *h_wallForces, double *h_interparticleForces, double *h_pos, int *h_numNeighbors, int *h_nlist, int *h_blist, double *h_forces, double *h_velocities, double *h_nlistPos);
 
+void ConstructFacePairList (struct sphere_param *h_params, struct face *h_faces, int *h_node_face_id, int *h_node_face_number, int *h_face_pair_list, int *blist, int *numBonds);
 
 // cuda
-void RestoreParticle_gpu (struct sphere_param h_params, double *h_foldedPos, double *h_nlistPos, int *h_numNeighbors, int *h_nlist, struct face *h_faces, struct monomer *d_monomers, struct face *d_faces, int *d_numBonds, int *d_blist, int *d_numNeighbors, int *d_nlist, double *d_pos, double *d_foldedPos, double *d_nlistPos, double *d_velocities, double *d_springForces, double *d_bendingForces, float *d_volumeForces, float *d_globalAreaForces, double *d_localAreaForces, double *d_wallForces, double *d_interparticleForces, double *d_forces    ,float *d_coms, double *d_faceCenters, double *d_normals, float *d_areas, float *d_volumes);
+void RestoreParticle_gpu (struct sphere_param h_params, double *h_foldedPos, double *h_nlistPos, int *h_numNeighbors, int *h_nlist, struct face *h_faces, struct monomer *d_monomers, struct face *d_faces, int *d_numBonds, int *d_blist, int *d_numNeighbors, int *d_nlist, double *d_pos, double *d_foldedPos, double *d_nlistPos, double *d_velocities, double *d_springForces, double *d_bendingForces, float *d_volumeForces, float *d_globalAreaForces, double *d_localAreaForces, double *d_wallForces, double *d_interparticleForces, double *d_forces    ,float *d_coms, double *d_faceCenters, double *d_normals, float *d_areas, float *d_volumes, int *d_face_pair_list);
 
 void ModifyParameters_wrapper (int h_numBeads, int *d_numBonds, struct monomer *d_monomers);
  

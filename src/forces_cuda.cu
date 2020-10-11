@@ -80,8 +80,6 @@ __global__ void SpringForce (struct monomer *monomers, int *numBonds, int *blist
 	{
     unsigned short springType;
     double springConst;
-    unsigned int   numNodesPerParticle; 
-    unsigned int   nodeOffset;
 
     // Ntype attr is # of particles per type
     // Decide the spring type of that monomer
@@ -142,170 +140,169 @@ __global__ void SpringForce (struct monomer *monomers, int *numBonds, int *blist
   }
 }
 
-__global__ void BendingForce (struct monomer *monomers, int *numBonds, int *blist, double *pos, double *bendingForces) {
-  
-  unsigned int index = blockIdx.y * gridDim.x * blockDim.x + blockIdx.x * blockDim.x + threadIdx.x;
-  if (index < d_partParams.num_beads)
-	{
-    double kb; 
+__global__ void BendingForce (struct monomer *monomers, int *numBonds, int *blist, double *pos, double *bendingForces, double *faceNormals, int *face_pair_list) {
 
-    if (index < (d_partParams.Ntype[0]*d_partParams.N_per_sphere[0])) {  
+  unsigned int index = blockIdx.y * gridDim.x * blockDim.x + blockIdx.x * blockDim.x + threadIdx.x;
+  if (index < d_partParams.num_face_pair)
+	{
+    double kb;
+    int F1 = face_pair_list[FPSIZE*index]; // face 1 id
+    int F2 = face_pair_list[FPSIZE*index+1]; // face 2 id
+
+    if (F1 < (d_partParams.Ntype[0]*d_partParams.face_per_sphere[0])) {  
       kb = 2.0/sqrt(3.0)*d_partParams.kc[0]*d_partParams.kT;
-      //kb = 2.0*sqrt(3)*d_partParams.kc[0]*d_partParams.kT;
     }
     else {
       kb = 2.0/sqrt(3.0)*d_partParams.kc[1]*d_partParams.kT; 
     }
 
-
-    unsigned int n1 = index;
+    unsigned int n1 = face_pair_list[FPSIZE*index+3];
     unsigned int n1offset = n1*3; 
 
-    for (unsigned int k=1; k <= numBonds[n1]; k++) 
-    {
-      double theta0 = monomers[n1].initAngle[k];
-      //        int n2 = blist[n1][k][0];
-      //	      int n3 = blist[n1][k][1];
-      //		    int n4 = blist[n1][k][2];
-      unsigned int n2 = blist[n1*6*3+(k-1)*3+0];
-      unsigned int n3 = blist[n1*6*3+(k-1)*3+1];
-      unsigned int n4 = blist[n1*6*3+(k-1)*3+2];
-      unsigned int n2offset = n2*3;
-      unsigned int n3offset = n3*3;
-      unsigned int n4offset = n4*3;
+    double theta0 = monomers[n1].initAngle[face_pair_list[FPSIZE*index+2]];
+    unsigned int n2 = face_pair_list[FPSIZE*index+4];
+    unsigned int n3 = face_pair_list[FPSIZE*index+5];
+    unsigned int n4 = face_pair_list[FPSIZE*index+6];
+    unsigned int n2offset = n2*3;
+    unsigned int n3offset = n3*3;
+    unsigned int n4offset = n4*3;
 
-      double v1[3], v2[3], v3[3], v4[3];
-      v1[0]=pos[n1offset];
-      v1[1]=pos[n1offset+1];
-      v1[2]=pos[n1offset+2];
+    double v1[3], v2[3], v3[3], v4[3];
+    v1[0]=pos[n1offset];
+    v1[1]=pos[n1offset+1];
+    v1[2]=pos[n1offset+2];
 
-      v2[0]=pos[n2offset];
-      v2[1]=pos[n2offset+1];
-      v2[2]=pos[n2offset+2];
+    v2[0]=pos[n2offset];
+    v2[1]=pos[n2offset+1];
+    v2[2]=pos[n2offset+2];
 
-      v3[0]=pos[n3offset];
-      v3[1]=pos[n3offset+1];
-      v3[2]=pos[n3offset+2];
+    v3[0]=pos[n3offset];
+    v3[1]=pos[n3offset+1];
+    v3[2]=pos[n3offset+2];
 
-      v4[0]=pos[n4offset];
-      v4[1]=pos[n4offset+1];
-      v4[2]=pos[n4offset+2];
+    v4[0]=pos[n4offset];
+    v4[1]=pos[n4offset+1];
+    v4[2]=pos[n4offset+2];
 
-      double a31[3], a21[3], a41[3];
-      a31[0] = v3[0] - v1[0];
-      a31[1] = v3[1] - v1[1];
-      a31[2] = v3[2] - v1[2];
-      a21[0] = v2[0] - v1[0];
-      a21[1] = v2[1] - v1[1];
-      a21[2] = v2[2] - v1[2];
-      a41[0] = v4[0] - v1[0];
-      a41[1] = v4[1] - v1[1];
-      a41[2] = v4[2] - v1[2];
+    double a31[3], a21[3], a41[3];
+    a31[0] = v3[0] - v1[0];
+    a31[1] = v3[1] - v1[1];
+    a31[2] = v3[2] - v1[2];
+    a21[0] = v2[0] - v1[0];
+    a21[1] = v2[1] - v1[1];
+    a21[2] = v2[2] - v1[2];
+    a41[0] = v4[0] - v1[0];
+    a41[1] = v4[1] - v1[1];
+    a41[2] = v4[2] - v1[2];
 
-      double normal1[3], normal2[3];
-      VectorProduct(a31, a21, normal1);
-      VectorProduct(a21, a41, normal2);
+    double normal1[3], normal2[3];
+    normal1[0] = faceNormals[F1*3];
+    normal1[1] = faceNormals[F1*3+1];
+    normal1[2] = faceNormals[F1*3+2];
 
-      double normal1_mag, normal2_mag;
-      normal1_mag = sqrt(normal1[0]*normal1[0] + normal1[1]*normal1[1] + normal1[2]*normal1[2]);
-      normal2_mag = sqrt(normal2[0]*normal2[0] + normal2[1]*normal2[1] + normal2[2]*normal2[2]);
+    normal2[0] = faceNormals[F2*3];
+    normal2[1] = faceNormals[F2*3+1];
+    normal2[2] = faceNormals[F2*3+2];
 
-      normal1[0] = normal1[0] / normal1_mag;
-      normal1[1] = normal1[1] / normal1_mag;
-      normal1[2] = normal1[2] / normal1_mag;
-      normal2[0] = normal2[0] / normal2_mag; 
-      normal2[1] = normal2[1] / normal2_mag; 
-      normal2[2] = normal2[2] / normal2_mag; 
+    double normal1_mag, normal2_mag;
+    normal1_mag = sqrt(normal1[0]*normal1[0] + normal1[1]*normal1[1] + normal1[2]*normal1[2]);
+    normal2_mag = sqrt(normal2[0]*normal2[0] + normal2[1]*normal2[1] + normal2[2]*normal2[2]);
 
-      double orient[3];
-      VectorProduct(normal1, normal2, orient);
-      double value = sqrt((orient[0]*orient[0] + orient[1]*orient[1] + orient[2]*orient[2]));
-      double scaler = normal1[0]*normal2[0] + normal1[1]*normal2[1] + normal1[2]*normal2[2];
-      double theta = atan2(value, scaler);
-      // Note: ###################################################################
-      // When RBC particles are applied this program crashes if theta is computed 
-      // by acos !
-      // #########################################################################
-      /*if(scaler > 1.) scaler=1;
-      double theta = acos(scaler);*/
+    normal1[0] = normal1[0] / normal1_mag;
+    normal1[1] = normal1[1] / normal1_mag;
+    normal1[2] = normal1[2] / normal1_mag;
+    normal2[0] = normal2[0] / normal2_mag; 
+    normal2[1] = normal2[1] / normal2_mag; 
+    normal2[2] = normal2[2] / normal2_mag; 
 
-      double cosTheta = cos(theta);
-      double sign = orient[0]*a21[0] + orient[1]*a21[1] + orient[2]*a21[2];
-      //double temp = sin(theta_nr);
-      if (sign > 0) theta = -1.0*theta;
-      double delta_theta = theta - theta0;
-      double sinTheta = sin(theta);
-      double factor;
+    double orient[3];
+    VectorProduct(normal1, normal2, orient);
+    double value = sqrt((orient[0]*orient[0] + orient[1]*orient[1] + orient[2]*orient[2]));
+    double scaler = normal1[0]*normal2[0] + normal1[1]*normal2[1] + normal1[2]*normal2[2];
+    double theta = atan2(value, scaler);
+    // Note: ###################################################################
+    // When RBC particles are applied this program crashes if theta is computed 
+    // by acos !
+    // #########################################################################
+    /*if(scaler > 1.) scaler=1;
+    double theta = acos(scaler);*/
 
-      factor =  kb * sin(delta_theta) / sinTheta;  
+    double cosTheta = cos(theta);
+    double sign = orient[0]*a21[0] + orient[1]*a21[1] + orient[2]*a21[2];
+    //double temp = sin(theta_nr);
+    if (sign > 0) theta = -1.0*theta;
+    double delta_theta = theta - theta0;
+    double sinTheta = sin(theta);
+    double factor;
 
-      double n12[3], n21[3];
-      n12[0] = normal1[0] - cosTheta*normal2[0];
-      n12[1] = normal1[1] - cosTheta*normal2[1];
-      n12[2] = normal1[2] - cosTheta*normal2[2];
-      n21[0] = normal2[0] - cosTheta*normal1[0];
-      n21[1] = normal2[1] - cosTheta*normal1[1];
-      n21[2] = normal2[2] - cosTheta*normal1[2];
+    factor =  kb * sin(delta_theta) / sinTheta;  
 
-      double a12[3], a14[3], a23[3], a42[3];
-      a12[0] = -a21[0];
-      a12[1] = -a21[1];
-      a12[2] = -a21[2];
-      a14[0] = -a41[0];
-      a14[1] = -a41[1];
-      a14[2] = -a41[2];
-      a23[0] = v2[0] - v3[0];
-      a23[1] = v2[1] - v3[1];
-      a23[2] = v2[2] - v3[2];
-      a42[0] = v4[0] - v2[0];
-      a42[1] = v4[1] - v2[1];
-      a42[2] = v4[2] - v2[2];
+    double n12[3], n21[3];
+    n12[0] = normal1[0] - cosTheta*normal2[0];
+    n12[1] = normal1[1] - cosTheta*normal2[1];
+    n12[2] = normal1[2] - cosTheta*normal2[2];
+    n21[0] = normal2[0] - cosTheta*normal1[0];
+    n21[1] = normal2[1] - cosTheta*normal1[1];
+    n21[2] = normal2[2] - cosTheta*normal1[2];
 
-      double term3[3], term21[3], term22[3], term11[3], term12[3], term4[3];
-      VectorProduct(n21, a12, term3);
-      VectorProduct(n21, a31, term21);
-      VectorProduct(n12, a14, term22);
-      VectorProduct(n21, a23, term11);
-      VectorProduct(n12, a42, term12);
-      VectorProduct(n12, a21, term4);
+    double a12[3], a14[3], a23[3], a42[3];
+    a12[0] = -a21[0];
+    a12[1] = -a21[1];
+    a12[2] = -a21[2];
+    a14[0] = -a41[0];
+    a14[1] = -a41[1];
+    a14[2] = -a41[2];
+    a23[0] = v2[0] - v3[0];
+    a23[1] = v2[1] - v3[1];
+    a23[2] = v2[2] - v3[2];
+    a42[0] = v4[0] - v2[0];
+    a42[1] = v4[1] - v2[1];
+    a42[2] = v4[2] - v2[2];
 
-      double pre1, pre2;
-      pre1 = factor / normal1_mag;
-      pre2 = factor / normal2_mag;
+    double term3[3], term21[3], term22[3], term11[3], term12[3], term4[3];
+    VectorProduct(n21, a12, term3);
+    VectorProduct(n21, a31, term21);
+    VectorProduct(n12, a14, term22);
+    VectorProduct(n21, a23, term11);
+    VectorProduct(n12, a42, term12);
+    VectorProduct(n12, a21, term4);
 
-      double f1[3], f2[3], f3[3], f4[3];
-      f3[0] = pre1 * term3[0];
-      f3[1] = pre1 * term3[1];
-      f3[2] = pre1 * term3[2];
+    double pre1, pre2;
+    pre1 = factor / normal1_mag;
+    pre2 = factor / normal2_mag;
 
-      f2[0] = pre1 * term21[0] + pre2 * term22[0];
-      f2[1] = pre1 * term21[1] + pre2 * term22[1];
-      f2[2] = pre1 * term21[2] + pre2 * term22[2];
+    double f1[3], f2[3], f3[3], f4[3];
+    f3[0] = pre1 * term3[0];
+    f3[1] = pre1 * term3[1];
+    f3[2] = pre1 * term3[2];
 
-      f1[0] = pre1 * term11[0] + pre2 * term12[0];
-      f1[1] = pre1 * term11[1] + pre2 * term12[1];
-      f1[2] = pre1 * term11[2] + pre2 * term12[2];
+    f2[0] = pre1 * term21[0] + pre2 * term22[0];
+    f2[1] = pre1 * term21[1] + pre2 * term22[1];
+    f2[2] = pre1 * term21[2] + pre2 * term22[2];
 
-      f4[0] = pre2 * term4[0];    
-      f4[1] = pre2 * term4[1];    
-      f4[2] = pre2 * term4[2];    
+    f1[0] = pre1 * term11[0] + pre2 * term12[0];
+    f1[1] = pre1 * term11[1] + pre2 * term12[1];
+    f1[2] = pre1 * term11[2] + pre2 * term12[2];
 
-      bendingForces[n1offset+0] += f1[0];          
-      bendingForces[n1offset+1] += f1[1];          
-      bendingForces[n1offset+2] += f1[2];
-      
-      bendingForces[n2offset+0] += f2[0];          
-      bendingForces[n2offset+1] += f2[1];          
-      bendingForces[n2offset+2] += f2[2];          
+    f4[0] = pre2 * term4[0];    
+    f4[1] = pre2 * term4[1];    
+    f4[2] = pre2 * term4[2];    
 
-      bendingForces[n3offset+0] += f3[0];          
-      bendingForces[n3offset+1] += f3[1];          
-      bendingForces[n3offset+2] += f3[2];          
+    bendingForces[n1offset+0] += f1[0];          
+    bendingForces[n1offset+1] += f1[1];          
+    bendingForces[n1offset+2] += f1[2];
+    
+    bendingForces[n2offset+0] += f2[0];          
+    bendingForces[n2offset+1] += f2[1];          
+    bendingForces[n2offset+2] += f2[2];          
 
-      bendingForces[n4offset+0] += f4[0];          
-      bendingForces[n4offset+1] += f4[1];          
-      bendingForces[n4offset+2] += f4[2];        
-    }
+    bendingForces[n3offset+0] += f3[0];          
+    bendingForces[n3offset+1] += f3[1];          
+    bendingForces[n3offset+2] += f3[2];          
+
+    bendingForces[n4offset+0] += f4[0];          
+    bendingForces[n4offset+1] += f4[1];          
+    bendingForces[n4offset+2] += f4[2];        
 		
   }
 }
@@ -328,22 +325,22 @@ __global__ void COM (double *pos, float *com) {
   if (index < d_partParams.num_beads)
   {
     unsigned int partIdx;
-//int partIdx;
+    //int partIdx;
     unsigned int numNodesPerPart;
     if (index < d_partParams.Ntype[0] * d_partParams.N_per_sphere[0]) {
       partIdx = index / d_partParams.N_per_sphere[0];
-//partIdx = (int)index / d_partParams.N_per_sphere[0];
+      //partIdx = (int)index / d_partParams.N_per_sphere[0];
       numNodesPerPart = d_partParams.N_per_sphere[0];    
     } else {
       partIdx =  d_partParams.Ntype[0] + (index - d_partParams.Ntype[0]*d_partParams.N_per_sphere[0]) / d_partParams.N_per_sphere[1];
-//partIdx =  d_partParams.Ntype[0] + (int)(index - d_partParams.Ntype[0]*d_partParams.N_per_sphere[0]) / d_partParams.N_per_sphere[1];
+      //partIdx =  d_partParams.Ntype[0] + (int)(index - d_partParams.Ntype[0]*d_partParams.N_per_sphere[0]) / d_partParams.N_per_sphere[1];
       numNodesPerPart = d_partParams.N_per_sphere[1];   
     }
 
 
-//printf("partIdx=%d  nodePos=(%f %f %f)\n", partIdx, (float)(pos[index*3]/numNodesPerPart), (float)(pos[index*3+1]/numNodesPerPart), (float)(pos[index*3+2]/numNodesPerPart));
+    //printf("partIdx=%d  nodePos=(%f %f %f)\n", partIdx, (float)(pos[index*3]/numNodesPerPart), (float)(pos[index*3+1]/numNodesPerPart), (float)(pos[index*3+2]/numNodesPerPart));
    
-   // atomic operation is necessary !!!
+    // atomic operation is necessary !!!
     atomicAdd(&com[partIdx*3],   ((float)pos[index*3]   / (float)numNodesPerPart));
     atomicAdd(&com[partIdx*3+1], ((float)pos[index*3+1] / (float)numNodesPerPart));
     atomicAdd(&com[partIdx*3+2], ((float)pos[index*3+2] / (float)numNodesPerPart));
@@ -355,6 +352,48 @@ __global__ void PrintCOM (float *coms, float *volumes, float *areas) {
   unsigned int index = blockIdx.y*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x;
   if (index < d_partParams.Nsphere) {
     printf("particle %d  vol=%f  area=%f  com = (%f %f %f)\n", index, volumes[index], areas[index], coms[index*3], coms[index*3+1], coms[index*3+2]);
+  }
+}
+
+__global__ void FaceNormal (struct face *faces, double *pos, double *faceNormal){
+
+  unsigned int index = blockIdx.y*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x;
+
+  if (index < (d_partParams.Ntype[0]*d_partParams.face_per_sphere[0] + d_partParams.Ntype[1]*d_partParams.face_per_sphere[1])){
+    unsigned int n1 = faces[index].v[0];    
+    unsigned int n2 = faces[index].v[2];
+    unsigned int n3 = faces[index].v[1];
+
+    double v1[3], v2[3], v3[3];
+    double normal[3];
+    double v31[3], v21[3];
+
+    v1[0]=pos[n1*3];
+    v1[1]=pos[n1*3+1];
+    v1[2]=pos[n1*3+2];
+
+    v2[0]=pos[n2*3];
+    v2[1]=pos[n2*3+1];
+    v2[2]=pos[n2*3+2];
+
+    v3[0]=pos[n3*3];
+    v3[1]=pos[n3*3+1];
+    v3[2]=pos[n3*3+2];
+
+    v21[0] = v2[0] - v1[0];
+    v21[1] = v2[1] - v1[1];
+    v21[2] = v2[2] - v1[2];
+  
+    v31[0] = v3[0] - v1[0];
+    v31[1] = v3[1] - v1[1];
+    v31[2] = v3[2] - v1[2];
+
+    VectorProduct(v21, v31, normal);
+
+    // face noremal  
+    faceNormal[index*3]   = normal[0];
+    faceNormal[index*3+1] = normal[1];
+    faceNormal[index*3+2] = normal[2];
   }
 }
 
@@ -370,20 +409,14 @@ __global__ void VolumeAreas (struct face *faces, double *pos, float *com, double
     } else {
       partIdx = d_partParams.Ntype[0] + (index - d_partParams.Ntype[0]*d_partParams.face_per_sphere[0]) / d_partParams.face_per_sphere[1];
     }
-    unsigned int n1 = faces[index].v[0];    
+    unsigned int n1 = faces[index].v[0];
     unsigned int n2 = faces[index].v[2];
     unsigned int n3 = faces[index].v[1];
 
-    float v1[3];
-    float v2[3];
-    float v3[3];
-
-    float center[3];
-
-    float dr[3];
-    float v21[3];
-    float v31[3];     
+    float v1[3], v2[3], v3[3];
+    float dr[3];   
     float normal[3];
+    float center[3];
 
     v1[0]=pos[n1*3];
     v1[1]=pos[n1*3+1];
@@ -405,25 +438,16 @@ __global__ void VolumeAreas (struct face *faces, double *pos, float *com, double
     dr[1] = v1[1] - center[1];
     dr[2] = v1[2] - center[2];
 
-    v21[0] = v2[0] - v1[0];
-    v21[1] = v2[1] - v1[1];
-    v21[2] = v2[2] - v1[2];
-  
-    v31[0] = v3[0] - v1[0];
-    v31[1] = v3[1] - v1[1];
-    v31[2] = v3[2] - v1[2];
-
-//    VectorProduct(v21, v31, normal);  
-VectorProduct_float(v21, v31, normal);  
+    // face noremal  
+    normal[0] = faceNormal[index*3];
+    normal[1] = faceNormal[index*3+1];
+    normal[2] = faceNormal[index*3+2];
 
     // face center
     faceCenter[index*3]   = (v1[0] + v2[0] + v3[0])/3.0 - center[0];
     faceCenter[index*3+1] = (v1[1] + v2[1] + v3[1])/3.0 - center[1];
     faceCenter[index*3+2] = (v1[2] + v2[2] + v3[2])/3.0 - center[2];
-    // face noremal  
-    faceNormal[index*3]   = normal[0];
-    faceNormal[index*3+1] = normal[1];
-    faceNormal[index*3+2] = normal[2];
+
     // local area
     faces[index].area = 0.5 * sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2]);
     // global area
@@ -438,9 +462,9 @@ __global__ void VolumeAreaForces (float *volumes, struct face *faces, float *are
   unsigned int index = blockIdx.y*gridDim.x*blockDim.x + blockIdx.x*blockDim.x + threadIdx.x;
   //__shared__ double s_normals[64];
   //__shared__ double s_faceCenters[64];
-//  __shared__ double s_volumes[64];
-//  s_volumes[threadIdx.x] = volumes[index];
-//  __syncthreads();
+  //  __shared__ double s_volumes[64];
+  //  s_volumes[threadIdx.x] = volumes[index];
+  //  __syncthreads();
 
   if (index < d_partParams.Ntype[0]*d_partParams.face_per_sphere[0]+d_partParams.Ntype[1]*d_partParams.face_per_sphere[1])
   {
@@ -574,18 +598,19 @@ __global__ void VolumeAreaForces (float *volumes, struct face *faces, float *are
     atomicAdd(&globalAreaForces[n3*3],   (float)((kag+kal)*temp3[0]));
     atomicAdd(&globalAreaForces[n3*3+1], (float)((kag+kal)*temp3[1]));
     atomicAdd(&globalAreaForces[n3*3+2], (float)((kag+kal)*temp3[2]));
-//    localAreaForces[n1]   += kal*temp1[0];
-//    localAreaForces[n1+1] += kal*temp1[1];
-//    localAreaForces[n1+2] += kal*temp1[2];
-//    localAreaForces[n2]   += kal*temp2[0];
-//    localAreaForces[n2+1] += kal*temp2[1];
-//    localAreaForces[n2+2] += kal*temp2[2];
-//    localAreaForces[n3]   += kal*temp3[0];
-//    localAreaForces[n3+1] += kal*temp3[1];
-//    localAreaForces[n3+2] += kal*temp3[2];
+    //    localAreaForces[n1]   += kal*temp1[0];
+    //    localAreaForces[n1+1] += kal*temp1[1];
+    //    localAreaForces[n1+2] += kal*temp1[2];
+    //    localAreaForces[n2]   += kal*temp2[0];
+    //    localAreaForces[n2+1] += kal*temp2[1];
+    //    localAreaForces[n2+2] += kal*temp2[2];
+    //    localAreaForces[n3]   += kal*temp3[0];
+    //    localAreaForces[n3+1] += kal*temp3[1];
+    //    localAreaForces[n3+2] += kal*temp3[2];
   }
 }
 
+// Is this function not used anymore?
 __global__ void VolumeAreaConstraints (struct face *faces, double *pos, double *volumeForces, double *globalAreaForces, double *localAreaForces) {
 
   unsigned int index = blockIdx.y * gridDim.x * blockDim.x + blockIdx.x * blockDim.x + threadIdx.x;
@@ -624,6 +649,7 @@ __global__ void VolumeAreaConstraints (struct face *faces, double *pos, double *
       faceOffset = d_partParams.Ntype[0] * d_partParams.face_per_sphere[0] + (index-d_partParams.Ntype[0]) * d_partParams.face_per_sphere[1];
     }
 
+    // Use COM instead?
     double com[3] = {0.0};
     double area   = 0.0;
     double volume = 0.0;
@@ -779,32 +805,32 @@ __global__ void VolumeAreaConstraints (struct face *faces, double *pos, double *
 			globalAreaForces[n3*3+2] += (areaG+areaL) * temp3[2];
 
 			// Local area constraint
-//			localAreaForces[n1*3]   += areaL * temp1[0];
-//			localAreaForces[n1*3+1] += areaL * temp1[1];
-//			localAreaForces[n1*3+2] += areaL * temp1[2];
+      //			localAreaForces[n1*3]   += areaL * temp1[0];
+      //			localAreaForces[n1*3+1] += areaL * temp1[1];
+      //			localAreaForces[n1*3+2] += areaL * temp1[2];
 
-//			localAreaForces[n2*3]   += areaL * temp2[0];
-//			localAreaForces[n2*3+1] += areaL * temp2[1];
-//			localAreaForces[n2*3+2] += areaL * temp2[2];
+      //			localAreaForces[n2*3]   += areaL * temp2[0];
+      //			localAreaForces[n2*3+1] += areaL * temp2[1];
+      //			localAreaForces[n2*3+2] += areaL * temp2[2];
 
-//			localAreaForces[n3*3]   += areaL * temp3[0];
-//			localAreaForces[n3*3+1] += areaL * temp3[1];
-//			localAreaForces[n3*3+2] += areaL * temp3[2];
+      //			localAreaForces[n3*3]   += areaL * temp3[0];
+      //			localAreaForces[n3*3+1] += areaL * temp3[1];
+      //			localAreaForces[n3*3+2] += areaL * temp3[2];
 		}
 	}
 }
 
 __global__ void WallForce_gpu (double *pos, double *wallForces) {
 
-//	double boxCenter[3] = {0.5*d_partParams.lx, 0.5*d_partParams.ly, 0.5*d_partParams.lz};
-//	double end_fluid_node_y = 0.5*(d_partParams.ly-1.); // measured from the box center: (max -0.5) - 0.5*max
-//	double end_fluid_node_z = 0.5*(d_partParams.lz-1.); // measured from the box center
-//  double topWally = end_fluid_node_y - d_partParams.wallForceDis;
-//  double topWallz = end_fluid_node_z - d_partParams.wallForceDis;
-//  double topWally = 0.5*(d_partParams.ly-1.) - d_partParams.wallForceDis;
-//  double topWallz = 0.5*(d_partParams.lz-1.) - d_partParams.wallForceDis;
-//  double bottomWally = -topWally;
-//  double bottomWallz = -topWallz;
+  //	double boxCenter[3] = {0.5*d_partParams.lx, 0.5*d_partParams.ly, 0.5*d_partParams.lz};
+  //	double end_fluid_node_y = 0.5*(d_partParams.ly-1.); // measured from the box center: (max -0.5) - 0.5*max
+  //	double end_fluid_node_z = 0.5*(d_partParams.lz-1.); // measured from the box center
+  //  double topWally = end_fluid_node_y - d_partParams.wallForceDis;
+  //  double topWallz = end_fluid_node_z - d_partParams.wallForceDis;
+  //  double topWally = 0.5*(d_partParams.ly-1.) - d_partParams.wallForceDis;
+  //  double topWallz = 0.5*(d_partParams.lz-1.) - d_partParams.wallForceDis;
+  //  double bottomWally = -topWally;
+  //  double bottomWallz = -topWallz;
   double topWally = (d_partParams.ly-1) - d_partParams.wallForceDis - (0.5*d_partParams.ly);
   double topWallz = (d_partParams.lz-1) - d_partParams.wallForceDis - (0.5*d_partParams.lz);
   double bottomWally = - topWally;
@@ -866,17 +892,17 @@ __global__ void WallForce_gpu (double *pos, double *wallForces) {
 
 __global__ void InterparticleForce (struct monomer *monomers, int *numNeighbors, int *nlist, double *pos, double *interparticleForces) {
 
-// TODO
-// 1) Use another array to store each node's sphere_id or obtain the sphere_id by simple computation if it is possible.
-// 2) Access the neighbor list more efficiently 
-// 3) Redesign the algorithm for the neighbor list construction to avoid using a fixed array size for all nodes' lists
+  // TODO
+  // 1) Use another array to store each node's sphere_id or obtain the sphere_id by simple computation if it is possible.
+  // 2) Access the neighbor list more efficiently 
+  // 3) Redesign the algorithm for the neighbor list construction to avoid using a fixed array size for all nodes' lists
 
-// will be deleted !
-//Float sigma = 2.0*radius;
-//double cutoff = 1.122 * sigma;
-//Float eps = d_partParams.kT/sigma; // there should be a sigma in denominator?
-//double sigma = 1 / 1.122;
-//double cutoff = 1.;
+  // will be deleted !
+  //Float sigma = 2.0*radius;
+  //double cutoff = 1.122 * sigma;
+  //Float eps = d_partParams.kT/sigma; // there should be a sigma in denominator?
+  //double sigma = 1 / 1.122;
+  //double cutoff = 1.;
 
 	// L-J potential
 	//double eps    = d_partParams.eps * d_partParams.kT; 
@@ -889,12 +915,12 @@ __global__ void InterparticleForce (struct monomer *monomers, int *numNeighbors,
 	//double epsMorse     = d_partParams.depthMorse * d_partParams.kT;
 	//double cutoff_morse = d_partParams.cutoffMorse;
 
-//__shared__ short int numNeighb_shared[64];
+  //__shared__ short int numNeighb_shared[64];
 
   unsigned int index = blockIdx.y * gridDim.x * blockDim.x + blockIdx.x * blockDim.x + threadIdx.x;
 
-//numNeighb_shared[threadIdx.x] = numNeighbors[index];
-//__syncthreads();
+  //numNeighb_shared[threadIdx.x] = numNeighbors[index];
+  //__syncthreads();
 
   if (index < d_partParams.num_beads)
   {
@@ -921,9 +947,9 @@ __global__ void InterparticleForce (struct monomer *monomers, int *numNeighbors,
 
     //unsigned int n1offset = index*3;
 
-//		for (unsigned int i=1; i <= nlist[index*MAX_N]; i++) 
+    //		for (unsigned int i=1; i <= nlist[index*MAX_N]; i++) 
     for (unsigned int i=0; i < numNeighbors[index]; i++)
-//    for (unsigned int i=0; i < numNeighb_shared[threadIdx.x]; i++)
+    //    for (unsigned int i=0; i < numNeighb_shared[threadIdx.x]; i++)
     {
 			unsigned int n2 = nlist[index*MAX_N+i];
       //unsigned int n2offset = n2*3;   
@@ -934,8 +960,8 @@ __global__ void InterparticleForce (struct monomer *monomers, int *numNeighbors,
         partIdx2 = d_partParams.Ntype[0] + (n2-d_partParams.Ntype[0]*d_partParams.N_per_sphere[0])/d_partParams.N_per_sphere[1];
       }
 
-//			if (monomers[index].sphere_id != monomers[n2].sphere_id) 
-//      if (fabs( float(index-n2)) < 162) //doesn't work !? should take absolute value
+      //			if (monomers[index].sphere_id != monomers[n2].sphere_id) 
+      //      if (fabs( float(index-n2)) < 162) //doesn't work !? should take absolute value
       if (partIdx1 != partIdx2)
       {
 				double q12[3], q12mag=0., force[3]={0.};    
@@ -1042,11 +1068,12 @@ __global__ void InterparticleForce (struct monomer *monomers, int *numNeighbors,
 }
 
 extern "C"
-void ComputeForces_gpu (/*unsigned int h_numBeads, unsigned int h_numParticles,*/ struct sphere_param h_params, struct monomer *d_monomers, struct face *d_faces, int *d_numBonds, int *d_blist, int *d_numNeighbors, int *d_nlist, double *d_pos, double *d_springForces, double *d_bendingForces, float *d_volumeForces, float *d_globalAreaForces, double *d_localAreaForces, double *d_wallForces, double *d_interparticleForces, double *d_forces    ,float *d_coms, double *d_faceCenters, double *d_normals, float *d_areas, float *d_volumes) {
+void ComputeForces_gpu (/*unsigned int h_numBeads, unsigned int h_numParticles,*/ struct sphere_param h_params, struct monomer *d_monomers, struct face *d_faces, int *d_numBonds, int *d_blist, int *d_numNeighbors, int *d_nlist, double *d_pos, double *d_springForces, double *d_bendingForces, float *d_volumeForces, float *d_globalAreaForces, double *d_localAreaForces, double *d_wallForces, double *d_interparticleForces, double *d_forces    ,float *d_coms, double *d_faceCenters, double *d_normals, float *d_areas, float *d_volumes, int *d_face_pair_list) {
 
   int h_numParticles = h_params.Nsphere;
   int h_numBeads     = h_params.num_beads;
   int h_numFaces     = h_params.Ntype[0]*h_params.face_per_sphere[0]+h_params.Ntype[1]*h_params.face_per_sphere[1];
+  int h_numFacePairs = h_params.num_face_pair;
 
   int numStreams = 5;
   cudaStream_t *streams = (cudaStream_t *) malloc(numStreams*sizeof(cudaStream_t));
@@ -1054,15 +1081,33 @@ void ComputeForces_gpu (/*unsigned int h_numBeads, unsigned int h_numParticles,*
     cudaStreamCreate (&(streams[i]));
   }
 
-  // Assign a thread grid which can cover the bead-level computation
   int threads_per_block = 64;
   int blocks_per_grid_y = 4;
-  int blocks_per_grid_x = (h_params.num_beads + threads_per_block*blocks_per_grid_y - 1) / (threads_per_block * blocks_per_grid_y);
+  int blocks_per_grid_x = (h_numBeads + threads_per_block*blocks_per_grid_y - 1) / (threads_per_block * blocks_per_grid_y);
   dim3 dim_grid = make_uint3 (blocks_per_grid_x, blocks_per_grid_y, 1);
 
   ZeroForces <<<dim_grid, threads_per_block>>> (d_springForces, d_bendingForces, d_volumeForces, d_globalAreaForces, d_localAreaForces, d_wallForces, d_interparticleForces);
+
+  threads_per_block = 64;
+  blocks_per_grid_y = 4;
+  blocks_per_grid_x = (h_numFaces + threads_per_block*blocks_per_grid_y - 1) / (threads_per_block * blocks_per_grid_y);
+  dim_grid = make_uint3 (blocks_per_grid_x, blocks_per_grid_y, 1);
+
+  FaceNormal <<<dim_grid, threads_per_block>>> (d_faces, d_pos, d_normals);
+
+  threads_per_block = 64;
+  blocks_per_grid_y = 4;
+  blocks_per_grid_x = (h_numBeads + threads_per_block*blocks_per_grid_y - 1) / (threads_per_block * blocks_per_grid_y);
+  dim_grid = make_uint3 (blocks_per_grid_x, blocks_per_grid_y, 1);
+
   SpringForce <<<dim_grid, threads_per_block , 0, streams[0]>>> (d_monomers, d_numBonds, d_blist, d_pos, d_springForces);
-  BendingForce <<<dim_grid, threads_per_block , 0, streams[1]>>> (d_monomers, d_numBonds, d_blist, d_pos, d_bendingForces);
+
+  threads_per_block = 64;
+  blocks_per_grid_y = 4;
+  blocks_per_grid_x = (h_numFacePairs + threads_per_block*blocks_per_grid_y - 1) / (threads_per_block * blocks_per_grid_y);
+  dim_grid = make_uint3 (blocks_per_grid_x, blocks_per_grid_y, 1);
+
+  BendingForce <<<dim_grid, threads_per_block , 0, streams[1]>>> (d_monomers, d_numBonds, d_blist, d_pos, d_bendingForces, d_normals, d_face_pair_list);
 
   threads_per_block = 64;
   blocks_per_grid_y = 4;
@@ -1107,69 +1152,3 @@ void ComputeForces_gpu (/*unsigned int h_numBeads, unsigned int h_numParticles,*
 
 //cudaDeviceSynchronize();
 }
-
-
-//void PullingForce (char *work_dir, struct monomer *mon, double force) {
-//
-//  int num_pulled_bea = 256;
-//  int num_pulled_top_right = 64;
-//  char filename[200];
-//  FILE *stream;
-//
-//  sprintf (filename, "%s/init/pulled_bead.dat", work_dir);
-//  stream = fopen (filename, "r");  
-//  for (int n=0; n < num_pulled_bead; n++) {
-//    int temp;  
-//    fscanf (stream, "%d\n", &temp);
-//    mon[temp].force[1] += (force/num_pulled_bead);
-//  }
-//  fclose (stream);
-//
-//  //sprintf (filename, "%s/init/pulled_top_right.dat", work_dir);
-//  //stream = fopen (filename, "r");  
-//  //for(int n=0; n < num_pulled_top_right; n++)
-//  //{
-//  //  int temp;  
-//  //  fscanf (stream, "%d\n", &temp);
-//  //  mon[temp].force[1] += (force/num_pulled_top_right);
-//  //}
-//  //fclose (stream);
-//
-//  for(int n=0; n < 642; n++)
-//  {
-//    mon[n].force[0]=0.;
-//    mon[n].force[1]=0.;
-//    mon[n].force[2]=0.;
-//  }
-//
-//
-////  sprintf (filename, "%s/init/upper.dat", work_dir);
-////  stream = fopen (filename, "r");
-////  fscanf (stream, "%d\n", &num_vertex);
-////  for(int n=0; n < num_vertex; n++)
-////  {
-////    fscanf (stream, "%d\n", &label[n]);
-////    label[n] += 642;
-////  }
-////  fclose (stream);
-////
-////  for(int n=0; n < num_vertex; n++)
-////  {
-////    mon[ label[n] ].force[1] += force/128.0;
-////  }
-////
-////  sprintf (filename, "%s/init/attached.dat", work_dir);
-////  stream = fopen (filename, "r");
-////  fscanf (stream, "%d\n", &num_vertex);
-////  for(int n=0; n < num_vertex; n++)
-////  {
-////    fscanf (stream, "%d\n", &label[n]);    
-////  }
-////  fclose (stream);
-////
-////  for(int n=0; n < num_vertex; n++)
-////  {
-////    mon[ label[n] ].force[1] -= force/128.0;
-////  }
-//}
-
