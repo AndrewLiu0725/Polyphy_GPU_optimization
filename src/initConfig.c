@@ -61,7 +61,7 @@ void ModifyParameters (int step, int *numBonds, struct sphere_param *params, str
   }
 }
 
-int GenerateConfig (struct sphere_param *sphere_pm, char *work_dir, struct monomer *monomers, struct face *faces, double *pos, double *foldedPos, int *numBonds, int *blist, int ***Blist, int *h_node_face_id, int *h_node_face_number) {
+int GenerateConfig (struct sphere_param *sphere_pm, char *work_dir, struct monomer *monomers, struct face *faces, double *pos, double *foldedPos, int *numBonds, int *blist, int ***Blist) {
 
 // This function sets monomer[].pos_pbc, monomer[].pos, monomer[].blist, and monoer[].sphere_id
 
@@ -363,7 +363,6 @@ int GenerateConfig (struct sphere_param *sphere_pm, char *work_dir, struct monom
       }
 		}
 
-    // read the position and orientation of each particle
     FILE *pFile;
     char filename[150];
     sprintf (filename, "%s/init/posOrient.dat", work_dir);
@@ -408,7 +407,6 @@ int GenerateConfig (struct sphere_param *sphere_pm, char *work_dir, struct monom
 				double dx = centers[n][0] - centers[n1][0];
 				double dy = centers[n][1] - centers[n1][1];
 				double dz = centers[n][2] - centers[n1][2];
-        // n_image function is to address pbc
         switch (sphere_pm->wallFlag) {
           case 1:
             dx = n_image (dx, sphere_pm->lx);
@@ -431,15 +429,15 @@ int GenerateConfig (struct sphere_param *sphere_pm, char *work_dir, struct monom
       if (overlap == TRUE) {
         fprintf (stdout, "Particles may overlap!\n");
       }
-      // Read the shape of pre-described particle
+
       ReadTemplate (particleType, reduced_factor, work_dir, v, blist_rbc);
 
-			// Rotate the particle by creating rotation matrix, mat
+			// Rotate the particle 
       double mat[3][3];
       RotationMatrix (alpha, beta, gamma, mat);
 
   	  for (int i=0; i < numNodesPerPart; i++) 
- 			{       
+ 			{             
         int m = i + offset;  // bead (monomer) index
         //monomers[m].pos_pbc[0] = centers[n][0]; 
         //monomers[m].pos_pbc[1] = centers[n][1]; 
@@ -447,15 +445,12 @@ int GenerateConfig (struct sphere_param *sphere_pm, char *work_dir, struct monom
         pos[m*3+0] = centers[n][0];
         pos[m*3+1] = centers[n][1];
         pos[m*3+2] = centers[n][2];    
-
-        // project and rotate
         for (int j=0; j < DIMS; j++) {
           for (int k=0; k < DIMS; k++) {
             //monomers[m].pos_pbc[j] += mat[j][k] * v[i][k]; 
             pos[m*3+j] += mat[j][k] * v[i][k]; 
           }
         }
-        // foldedPos is the pos in pbc
         if (sphere_pm->wallFlag == 1) {
           //monomers[m].pos[0] = box(monomers[m].pos_pbc[0], max_x);
           //monomers[m].pos[1] =     monomers[m].pos_pbc[1];
@@ -479,7 +474,6 @@ int GenerateConfig (struct sphere_param *sphere_pm, char *work_dir, struct monom
 //  			monomers[m].blist[0][0] = blist_rbc[i][0][0];
 //  			blist[m][0][0] = blist_rbc[i][0][0];
         numBonds[m] = blist_rbc[i][0][0];
-
   			for (int j=1 ; j<=blist_rbc[i][0][0] ; j++) 
   			{
 //  			  monomers[m].blist[j][0] = offset + blist_rbc[i][j][0];
@@ -519,7 +513,7 @@ fprintf (stdout, "initconfig option 3 is turnned off\n");
   // There is another bond list stored in "blist[][]"
   // It's not necessary to have two bond lists.
   // ##################################################
-  AssignBlist (sphere_pm, work_dir, Blist, faces, h_node_face_id, h_node_face_number); 
+  AssignBlist (sphere_pm, work_dir, Blist, faces); 
   // Note:
   // merged into AssignBlist
   // @ Store labels of beads making up a face to "face[]"
@@ -609,7 +603,7 @@ void RotationMatrix (double thetaX, double thetaY, double thetaZ, double mat[3][
   mat[2][0] = -sin(beta);            mat[2][1] = cos(beta)*sin(alpha);                                     mat[2][2] = cos(beta)*cos(alpha);
 }
 
-void AssignBlist (struct sphere_param *sphere_pm, char *work_dir, int ***Blist, struct face *faces, int *h_node_face_id, int *h_node_face_number) {
+void AssignBlist (struct sphere_param *sphere_pm, char *work_dir, int ***Blist, struct face *faces) {
 
 	char filename[200];
 	FILE *stream;
@@ -700,21 +694,13 @@ void AssignBlist (struct sphere_param *sphere_pm, char *work_dir, int ***Blist, 
 
     stream = fopen (filename, "r");
     for (int i=0; i < numFacesPerPart; i++) {
-      int index = i + faceOffset; // the index of face
+      int index = i + faceOffset;
       faces[index].sphere_id = n;
       fscanf (stream, "%d %d %d", &faces[index].v[0], &faces[index].v[1], &faces[index].v[2]);
 
       faces[index].v[0] += beadOffset;
       faces[index].v[1] += beadOffset;
       faces[index].v[2] += beadOffset;
-
-      h_node_face_id[faces[index].v[0]*MAX_BOND + h_node_face_number[faces[index].v[0]]] = index;
-      h_node_face_number[faces[index].v[0]] += 1;
-      h_node_face_id[faces[index].v[1]*MAX_BOND + h_node_face_number[faces[index].v[1]]] = index;
-      h_node_face_number[faces[index].v[1]] += 1;
-      h_node_face_id[faces[index].v[2]*MAX_BOND + h_node_face_number[faces[index].v[2]]] = index;
-      h_node_face_number[faces[index].v[2]] += 1;
-      
     }
     fclose (stream);
   }
@@ -889,7 +875,6 @@ void SetReducedPartParams (double *pos, int *numBonds, int *blist, struct sphere
 
   for(int n1=0; n1 < sphere_pm->num_beads; n1++)
   {
-    
     for(int label=1; label <= numBonds[n1]; label++)
     {
       // calculate initial bond length
@@ -1061,76 +1046,3 @@ void RestoreParticle (struct sphere_param *h_params, struct face *h_faces, doubl
   fprintf (stdout,"End restoring particles\n\n");
 }
 
-void ConstructFacePairList (struct sphere_param *h_params, struct face *h_faces, int *h_node_face_id, int *h_node_face_number, int *h_face_pair_list, int *blist, int *numBonds){
-  int current_num_face_pair = 0;
-  int n1, n2, n3;
-  int i, j, k, l;
-  int F;
-  for (i = 0; i < h_params->nfaces; i ++){
-    n1 = h_faces[i].v[0];
-    n2 = h_faces[i].v[1];
-    n3 = h_faces[i].v[2];
-
-    // edge (n1, n2)
-    for (j = 0; j < h_node_face_number[n1]; j ++){
-      F = h_node_face_id[n1*MAX_BOND+j];
-      for (k = 0; k < h_node_face_number[n2]; k ++){
-        if ((F == h_node_face_id[n2*MAX_BOND+k]) && (F > i)){
-          h_face_pair_list[FPSIZE*current_num_face_pair] = i;
-          h_face_pair_list[FPSIZE*current_num_face_pair+1] = F;
-          for (l = 0; l < numBonds[n1]; l ++){
-            if (blist[n1*MAX_BOND*3 + l*3] == n2){
-              h_face_pair_list[FPSIZE*current_num_face_pair+2] = (l+1);
-              h_face_pair_list[FPSIZE*current_num_face_pair+3] = n1;
-              h_face_pair_list[FPSIZE*current_num_face_pair+4] = n2;
-              h_face_pair_list[FPSIZE*current_num_face_pair+5] = blist[n1*MAX_BOND*3 + l*3 + 1];
-              h_face_pair_list[FPSIZE*current_num_face_pair+6] = blist[n1*MAX_BOND*3 + l*3 + 2];
-            }
-          }
-          current_num_face_pair += 1;
-        }
-      }
-    }
-    // edge (n2, n3)
-    for (j = 0; j < h_node_face_number[n2]; j ++){
-      F = h_node_face_id[n2*MAX_BOND+j];
-      for (k = 0; k < h_node_face_number[n3]; k ++){
-        if ((F == h_node_face_id[n3*MAX_BOND+k]) && (F > i)){
-          h_face_pair_list[FPSIZE*current_num_face_pair] = i;
-          h_face_pair_list[FPSIZE*current_num_face_pair+1] = F;
-          for (l = 0; l < numBonds[n2]; l ++){
-            if (blist[n2*MAX_BOND*3 + l*3] == n3){
-              h_face_pair_list[FPSIZE*current_num_face_pair+2] = (l+1);
-              h_face_pair_list[FPSIZE*current_num_face_pair+3] = n2;
-              h_face_pair_list[FPSIZE*current_num_face_pair+4] = n3;
-              h_face_pair_list[FPSIZE*current_num_face_pair+5] = blist[n2*MAX_BOND*3 + l*3 + 1];
-              h_face_pair_list[FPSIZE*current_num_face_pair+6] = blist[n2*MAX_BOND*3 + l*3 + 2];
-            }
-          }
-          current_num_face_pair += 1;
-        }
-      }
-    }
-    // edge (n1, n3)
-    for (j = 0; j < h_node_face_number[n1]; j ++){
-      F = h_node_face_id[n1*MAX_BOND+j];
-      for (k = 0; k < h_node_face_number[n3]; k ++){
-        if ((F == h_node_face_id[n3*MAX_BOND+k]) && (F > i)){
-          h_face_pair_list[FPSIZE*current_num_face_pair] = i;
-          h_face_pair_list[FPSIZE*current_num_face_pair+1] = F;
-          for (l = 0; l < numBonds[n1]; l ++){
-            if (blist[n1*MAX_BOND*3 + l*3] == n3){
-              h_face_pair_list[FPSIZE*current_num_face_pair+2] = (l+1);
-              h_face_pair_list[FPSIZE*current_num_face_pair+3] = n1;
-              h_face_pair_list[FPSIZE*current_num_face_pair+4] = n3;
-              h_face_pair_list[FPSIZE*current_num_face_pair+5] = blist[n1*MAX_BOND*3 + l*3 + 1];
-              h_face_pair_list[FPSIZE*current_num_face_pair+6] = blist[n1*MAX_BOND*3 + l*3 + 2];
-            }
-          }
-          current_num_face_pair += 1;
-        }
-      }
-    }
-  }
-  h_params->num_face_pair = current_num_face_pair;
-}

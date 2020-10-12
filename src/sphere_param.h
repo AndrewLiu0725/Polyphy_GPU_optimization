@@ -30,7 +30,6 @@ struct sphere_param {
   int Nsphere;   
   int num_beads; 
   int nfaces;    
-  int num_face_pair;
 
   DOUBLE V0[2];        
   DOUBLE A0[2];   

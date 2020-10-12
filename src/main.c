@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include <time.h>
 #include "cuda_runtime_api.h"
 
@@ -14,7 +13,6 @@
 #include "lb.h"
 #include "kernel.h"
 #include "config.h"
-#include "monomer.h"
 
 int main () {
 
@@ -64,7 +62,6 @@ cudaSetDevice(1);
   int                 *d_nlist;
   int                 *d_numBonds;
   int                 *d_blist;
-  int                 *d_face_pair_list;
   //  int    ***Blist;
   float *d_coms;
   double *d_faceCenters;
@@ -183,11 +180,11 @@ exit(0);
       exit(2);
     }
 
-    h_numNeighbors = (int *) malloc (h_params.num_beads*sizeof(int));
-    if (h_numNeighbors == NULL) {
-      printf ("Memory allocation for h_numNeighbors failed\n");
-      exit(2);
-    }
+h_numNeighbors = (int *) malloc (h_params.num_beads*sizeof(int));
+if (h_numNeighbors == NULL) {
+  printf ("Memory allocation for h_numNeighbors failed\n");
+  exit(2);
+}
 
     h_nlist = (int *) malloc (h_params.num_beads*MAX_N*sizeof(int));
     if (h_nlist == NULL) {
@@ -272,36 +269,7 @@ exit(0);
     if (h_velocities == NULL) {
       fprintf(stderr,"Memory allocation for velocities failed\n");
       exit(2);
-    }
-
-    // The following are for new data structure
-    int                 *h_node_face_id;
-    int                 *h_node_face_number;
-    int                 *h_face_pair_list;
-
-    h_params.num_face_pair = 0;
-
-    h_node_face_number = (int *)malloc(h_params.num_beads*sizeof(int));
-    if (h_node_face_number == NULL) {
-      printf ("Memory allocation for h_node_face_number failed\n");
-      exit(2);
-    }
-    memset(h_node_face_number, 0, h_params.num_beads*sizeof(int));
-
-    h_node_face_id = (int *)malloc(h_params.num_beads*MAX_BOND*sizeof(int));
-    if (h_node_face_id == NULL) {
-      printf ("Memory allocation for h_node_face_id failed\n");
-      exit(2);
-    }
-
-    // 3 comes from the fact that each triangle has three adjacent triangles
-    h_face_pair_list = (int*)malloc(h_params.nfaces*3*3*sizeof(int));
-    printf("Expected # of face pairs = %d\n", h_params.nfaces*3/2);
-    if (h_face_pair_list == NULL) {
-      printf ("Memory allocation for h_face_pair_list failed\n");
-      exit(2);
-    } 
-
+    }   
 
     //#ifdef PARTICLE_GPU
     //cudaMalloc((void**)&d_params, sizeof(struct sphere_param));
@@ -343,10 +311,7 @@ exit(0);
 
     //#endif
 
-    reduced_flag = GenerateConfig (&h_params, work_dir, h_monomers, h_faces, h_pos, h_foldedPos, h_numBonds, h_blist, h_Blist, h_node_face_id, h_node_face_number);
-
-    // Create face pair list
-    ConstructFacePairList (&h_params, h_faces, h_node_face_id, h_node_face_number, h_face_pair_list, h_blist, h_numBonds);
+    reduced_flag = GenerateConfig (&h_params, work_dir, h_monomers, h_faces, h_pos, h_foldedPos, h_numBonds, h_blist, h_Blist);
 
     SetEqPartParams (work_dir, &h_params, h_numBonds, h_monomers, h_faces);
 
@@ -363,9 +328,6 @@ exit(0);
     InitializeDevPartParams (&h_params);
     //Initialize_LB_Parameters_dev (&h_LBparams);  // It is done in 'InitializeLB'.
     //cudaMemcpy (d_params,   &h_params, sizeof(struct sphere_param), cudaMemcpyHostToDevice);  
-    printf("Actual number of face pair = %d\n", h_params.num_face_pair);
-    cudaMalloc((void**)&d_face_pair_list, h_params.num_face_pair*6*sizeof(int));
-    CHECK(cudaMemcpy (d_face_pair_list, h_face_pair_list,  h_params.num_face_pair*6*sizeof(int), cudaMemcpyHostToDevice));
     CHECK(cudaMemcpy (d_monomers,     h_monomers,  h_params.num_beads*sizeof(struct monomer), cudaMemcpyHostToDevice));
     CHECK(cudaMemcpy (d_faces,        h_faces,     h_params.nfaces*sizeof(struct face),cudaMemcpyHostToDevice));
     CHECK(cudaMemcpy (d_pos,          h_pos,       h_params.num_beads*3*sizeof(double), cudaMemcpyHostToDevice));
@@ -387,8 +349,8 @@ exit(0);
     //cudaMemcpy (d_velocities,          h_velocities,          h_params.num_beads*3*sizeof(double), cudaMemcpyHostToDevice);
     cudaMemset (d_springForces,        0, h_params.num_beads*3*sizeof(double));
     cudaMemset (d_bendingForces,       0, h_params.num_beads*3*sizeof(double));
-    cudaMemset (d_volumeForces,        0, h_params.num_beads*3*sizeof(float));
-    cudaMemset (d_globalAreaForces,    0, h_params.num_beads*3*sizeof(float));
+cudaMemset (d_volumeForces,        0, h_params.num_beads*3*sizeof(float));
+cudaMemset (d_globalAreaForces,    0, h_params.num_beads*3*sizeof(float));
     cudaMemset (d_localAreaForces,     0, h_params.num_beads*3*sizeof(double));
     cudaMemset (d_wallForces,          0, h_params.num_beads*3*sizeof(double));
     cudaMemset (d_interparticleForces, 0, h_params.num_beads*3*sizeof(double));
@@ -399,7 +361,7 @@ exit(0);
     if (reduced_flag == 1) 
     {
 //      #ifdef PARTICLE_GPU
-      RestoreParticle_gpu (h_params, h_foldedPos, h_nlistPos, h_numNeighbors, h_nlist, h_faces, d_monomers, d_faces, d_numBonds, d_blist, d_numNeighbors, d_nlist, d_pos, d_foldedPos, d_nlistPos, d_velocities, d_springForces, d_bendingForces, d_volumeForces, d_globalAreaForces, d_localAreaForces, d_wallForces, d_interparticleForces, d_forces    ,d_coms, d_faceCenters, d_normals, d_areas, d_volumes, d_face_pair_list);      
+      RestoreParticle_gpu (h_params, h_foldedPos, h_nlistPos, h_numNeighbors, h_nlist, h_faces, d_monomers, d_faces, d_numBonds, d_blist, d_numNeighbors, d_nlist, d_pos, d_foldedPos, d_nlistPos, d_velocities, d_springForces, d_bendingForces, d_volumeForces, d_globalAreaForces, d_localAreaForces, d_wallForces, d_interparticleForces, d_forces    ,d_coms, d_faceCenters, d_normals, d_areas, d_volumes);      
 //      #else
 //      RestoreParticle (&h_params, h_faces, h_foldedPos, h_numBonds, h_monomers, h_springForces, h_bendingForces, h_volumeForces, h_globalAreaForces, h_localAreaForces, h_wallForces, h_interparticleForces, h_pos, h_nlist, h_blist, h_forces, h_velocities, h_nlistPos);
 //      #endif
@@ -447,7 +409,7 @@ CHECK(cudaMemcpy (h_monomers,  d_monomers,  h_params.num_beads*sizeof(struct mon
     fflush (stdout);
 
     #ifdef PARTICLE_GPU
-    cycle = LBkernel (cycle, h_params, h_foldedPos, d_foldedPos, dataFolder, h_faces, d_pos, devBoundaryMap, devBoundaryVelocities, devCurrentNodes, devExtForces, d_velocities, h_nlistPos, h_nlist, d_nlistPos, d_nlist, d_monomers, d_faces, d_numBonds, d_blist, d_springForces, d_bendingForces, d_volumeForces, d_globalAreaForces, d_localAreaForces, d_wallForces, d_interparticleForces, d_forces, h_LBparams, h_numNeighbors, d_numNeighbors    ,d_coms, d_faceCenters, d_normals, d_areas, d_volumes, d_face_pair_list);
+    cycle = LBkernel (cycle, h_params, h_foldedPos, d_foldedPos, dataFolder, h_faces, d_pos, devBoundaryMap, devBoundaryVelocities, devCurrentNodes, devExtForces, d_velocities, h_nlistPos, h_nlist, d_nlistPos, d_nlist, d_monomers, d_faces, d_numBonds, d_blist, d_springForces, d_bendingForces, d_volumeForces, d_globalAreaForces, d_localAreaForces, d_wallForces, d_interparticleForces, d_forces, h_LBparams, h_numNeighbors, d_numNeighbors    ,d_coms, d_faceCenters, d_normals, d_areas, d_volumes);
     #else  
     cycle = LBkernel (cycle, h_params, h_foldedPos, d_foldedPos, dataFolder, h_faces, d_pos, devBoundaryMap, devBoundaryVelocities, devCurrentNodes, devExtForces, d_velocities, h_nlistPos, h_nlist, d_nlistPos, d_nlist, d_monomers, d_faces, d_numBonds, d_blist, d_springForces, d_bendingForces, d_volumeForces, d_globalAreaForces, d_localAreaForces, d_wallForces, d_interparticleForces, d_forces, h_LBparams, h_pos, h_monomers, h_springForces, h_bendingForces, h_volumeForces, h_globalAreaForces, h_localAreaForces, h_wallForces, h_interparticleForces, h_numBonds, h_blist, h_forces, h_numNeighbors);
     #endif

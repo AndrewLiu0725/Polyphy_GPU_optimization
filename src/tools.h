@@ -24,7 +24,6 @@
 #define  MAX_DP         500          /* Max # of deformable particles */
 #define  MAX_W          100          /* Max # warnings */
 #define PAUSE printf("Press Enter key to continue..."); fgetc(stdin);
-#define FPSIZE 7 // format (face 1 id, face 2 id, k, n1, n2, n3, 4)
 
 void file_name (char *name, char *work_dir, int task_number);
 
