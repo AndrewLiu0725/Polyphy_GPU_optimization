@@ -7,6 +7,24 @@ extern "C"{
 
 extern __constant__ struct sphere_param d_partParams;
 
+#if !defined(__CUDA_ARCH__) || __CUDA_ARCH__ >= 600
+
+#else
+static __inline__ __device__ double atomicAdd(double *address, double val) {
+  unsigned long long int* address_as_ull = (unsigned long long int*)address;
+  unsigned long long int old = *address_as_ull, assumed;
+  if (val==0.0)
+    return __longlong_as_double(old);
+  do {
+    assumed = old;
+    old = atomicCAS(address_as_ull, assumed, __double_as_longlong(val +__longlong_as_double(assumed)));
+  } while (assumed != old);
+  return __longlong_as_double(old);
+}
+
+
+#endif
+
 __device__ void VectorProduct (double a[3], double b[3], double c[3]) {
 
   c[0] = a[1]*b[2] - a[2]*b[1];
@@ -131,12 +149,12 @@ __global__ void SpringForce (struct monomer *monomers, int *numBonds, int *blist
       force[0] = mag * q12[0];
       force[1] = mag * q12[1];
       force[2] = mag * q12[2];
-      springForces[n1offset+0] += force[0];
-      springForces[n1offset+1] += force[1];
-      springForces[n1offset+2] += force[2];
-      springForces[n2offset+0] -= force[0];
-      springForces[n2offset+1] -= force[1];
-      springForces[n2offset+2] -= force[2];
+      atomicAdd(&springForces[n1offset+0] , force[0]);
+      atomicAdd(&springForces[n1offset+1] , force[1]);
+      atomicAdd(&springForces[n1offset+2] , force[2]);
+      atomicAdd(&springForces[n2offset+0] , -force[0]);
+      atomicAdd(&springForces[n2offset+1] , -force[1]);
+      atomicAdd(&springForces[n2offset+2] , -force[2]);
     }
     
   }
@@ -290,21 +308,18 @@ __global__ void BendingForce (struct monomer *monomers, int *numBonds, int *blis
       f4[1] = pre2 * term4[1];    
       f4[2] = pre2 * term4[2];    
 
-      bendingForces[n1offset+0] += f1[0];          
-      bendingForces[n1offset+1] += f1[1];          
-      bendingForces[n1offset+2] += f1[2];
-      
-      bendingForces[n2offset+0] += f2[0];          
-      bendingForces[n2offset+1] += f2[1];          
-      bendingForces[n2offset+2] += f2[2];          
-
-      bendingForces[n3offset+0] += f3[0];          
-      bendingForces[n3offset+1] += f3[1];          
-      bendingForces[n3offset+2] += f3[2];          
-
-      bendingForces[n4offset+0] += f4[0];          
-      bendingForces[n4offset+1] += f4[1];          
-      bendingForces[n4offset+2] += f4[2];        
+      atomicAdd(&bendingForces[n1offset+0] , f1[0]);          
+      atomicAdd(&bendingForces[n1offset+1], f1[1]);
+      atomicAdd(&bendingForces[n1offset+2], f1[2]);
+      atomicAdd(&bendingForces[n2offset+0], f2[0]);
+      atomicAdd(&bendingForces[n2offset+1], f2[1]);
+      atomicAdd(&bendingForces[n2offset+2], f2[2]);
+      atomicAdd(&bendingForces[n3offset+0], f3[0]);
+      atomicAdd(&bendingForces[n3offset+1], f3[1]);
+      atomicAdd(&bendingForces[n3offset+2], f3[2]);
+      atomicAdd(&bendingForces[n4offset+0], f4[0]);
+      atomicAdd(&bendingForces[n4offset+1], f4[1]);
+      atomicAdd(&bendingForces[n4offset+2], f4[2]);
     }
 		
   }
